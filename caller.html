@@ -1,0 +1,137 @@
+{% extends 'base.html' %}
+{% block title %}My Calling · Calling Veera{% endblock %}
+{% set current = assignments[0] if assignments else none %}
+{% block content %}
+<div class="caller-page">
+  <div class="caller-head">
+    <a class="back-link" href="{{ url_for('home') }}">←</a>
+    <div>
+      <div class="eyebrow">CALLER WORKSPACE</div>
+      <h1>My Calling</h1>
+      <p class="muted">Welcome, {{ user_name }}. Work through your assigned leads one by one.</p>
+    </div>
+    <a class="button secondary compact-btn" href="{{ url_for('caller_export') }}">⇩ Export</a>
+  </div>
+
+  {% if current %}
+  <section class="calling-detail card">
+    <div class="campaign-title">{{ current.lead.name }}</div>
+    <div class="script-link">WhatsApp message</div>
+
+    <div class="calling-status-row">
+      <span class="detail-pill">Status: {{ current.status }}</span>
+      <span class="detail-pill">Attempts: {{ current.attempts }}</span>
+    </div>
+
+    <div class="profile-circle">{{ current.lead.name[:1]|upper }}</div>
+    <h2 class="lead-name-large">{{ current.lead.name }}</h2>
+    <div class="lead-phone-large">{{ current.lead.phone }}</div>
+
+    <div class="detail-tabs">
+      <span class="active">Phone</span>
+      <span>Call details</span>
+      <span>Follow-up</span>
+    </div>
+
+    <div class="phone-panel">
+      <div class="call-history-label">Attempts: {{ current.attempts }}</div>
+      <a class="phone-number" href="tel:{{ current.lead.phone }}">{{ current.lead.phone }} ☎</a>
+      <a class="button call main-call" href="{{ url_for('caller_call', assignment_id=current.id) }}">📞 CALL NOW</a>
+      <a class="whatsapp-number" href="{{ url_for('caller_whatsapp', assignment_id=current.id) }}">◉ WhatsApp {{ current.lead.phone }}</a>
+    </div>
+
+    <form method="post" action="{{ url_for('update_assignment', assignment_id=current.id) }}" class="outcome-form">
+      <label>Call Outcome *
+        <select name="status">
+          {% for x in ['Pending','Completed','Call again','Not reachable'] %}
+            <option value="{{x}}" {% if current.status==x %}selected{% endif %}>{{x}}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <label>Calling remarks
+        <textarea name="notes" rows="3" placeholder="Add what the lead said...">{{ current.notes or '' }}</textarea>
+      </label>
+
+      <input type="hidden" name="called" value="0">
+      <button class="button primary submit-next" type="submit">Save & Get Next →</button>
+    </form>
+
+    <div class="message-box">
+      <div class="message-label">WhatsApp Message</div>
+      <textarea id="wa-message-{{ current.id }}" rows="6" readonly>{{ template|replace('{name}', current.lead.name) }}</textarea>
+      <div class="message-actions">
+        <button class="button secondary" type="button" onclick="copyMessage('wa-message-{{ current.id }}')">Copy Message</button>
+        <a class="button whatsapp" href="{{ url_for('caller_whatsapp', assignment_id=current.id) }}">Send WhatsApp</a>
+      </div>
+    </div>
+  </section>
+  {% else %}
+  <section class="empty card">
+    <div class="empty-icon">📋</div>
+    <h2>No leads assigned yet</h2>
+    <p class="muted">Ask an admin to import leads and assign them to you.</p>
+  </section>
+  {% endif %}
+
+  <section id="leads" class="card assigned-section">
+    <div class="section-head">
+      <div><h2>All assigned leads</h2><p class="muted">Search or open another lead.</p></div>
+    </div>
+    <form class="filters" method="get">
+      <input name="q" value="{{ q }}" placeholder="🔎 Search name or phone" aria-label="Search leads">
+      <select name="status" aria-label="Filter by status">
+        <option value="all" {% if status=='all' %}selected{% endif %}>All statuses</option>
+        {% for x in ['Pending','Completed','Call again','Not reachable'] %}<option value="{{x}}" {% if status==x %}selected{% endif %}>{{x}}</option>{% endfor %}
+      </select>
+      <button class="primary" type="submit">Filter</button>
+    </form>
+
+    <div class="leadlist compact-list">
+    {% for a in assignments %}
+      <article class="lead-card {% if current and a.id == current.id %}selected-lead{% endif %}">
+        <div class="lead-top">
+          <div class="lead-avatar">{{ a.lead.name[:1]|upper }}</div>
+          <div class="lead-info">
+            <h2>{{ a.lead.name }}</h2>
+            <a class="phone-link" href="tel:{{ a.lead.phone }}">{{ a.lead.phone }}</a>
+            <div class="lead-meta">{{ a.attempts }} attempt{{ '' if a.attempts==1 else 's' }}</div>
+          </div>
+          <span class="status {{a.status|lower|replace(' ','-')}}">{{ a.status }}</span>
+        </div>
+        <div class="lead-actions">
+          <a class="button call" href="{{url_for('caller_call',assignment_id=a.id)}}">📞 Call</a>
+          <a class="button whatsapp" href="{{url_for('caller_whatsapp',assignment_id=a.id)}}">💬 WhatsApp</a>
+        </div>
+        <details class="result-panel">
+          <summary>Update result <span>⌄</span></summary>
+          <form method="post" action="{{url_for('update_assignment',assignment_id=a.id)}}" class="result-form">
+            <label>Call status
+              <select name="status">
+                {% for x in ['Pending','Completed','Call again','Not reachable'] %}<option value="{{x}}" {% if a.status==x %}selected{% endif %}>{{x}}</option>{% endfor %}
+              </select>
+            </label>
+            <label>Notes
+              <input name="notes" value="{{a.notes or ''}}" placeholder="What did the lead say?">
+            </label>
+            <input type="hidden" name="called" value="0">
+            <button class="primary" type="submit">Save result ✓</button>
+          </form>
+        </details>
+      </article>
+    {% endfor %}
+    </div>
+  </section>
+</div>
+
+<script>
+function copyMessage(id){
+  const el=document.getElementById(id);
+  if(!el) return;
+  navigator.clipboard.writeText(el.value).then(()=>{
+    const buttons=document.querySelectorAll('.message-actions button');
+    buttons.forEach(b=>{ if(b.textContent.includes('Copy')) { const old=b.textContent; b.textContent='Copied ✓'; setTimeout(()=>b.textContent=old,1200); }});
+  });
+}
+</script>
+{% endblock %}
